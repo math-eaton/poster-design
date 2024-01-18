@@ -15,7 +15,7 @@ export function textSpheres(containerID, userText) {
         let height = window.innerHeight;
 
         // Camera setup
-        camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+        camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 2000);
         camera.position.z = 400;
 
         // Renderer setup
@@ -26,7 +26,7 @@ export function textSpheres(containerID, userText) {
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true; // Optional, but this adds inertia to the controls
         controls.dampingFactor = 0.05;
-        controls.rotateSpeed = 0.1;    
+        controls.rotateSpeed = 0.2;    
 
         // Sphere creation
         for (let i = 0; i < textBlocks.length; i++) {
@@ -54,29 +54,38 @@ export function textSpheres(containerID, userText) {
     
         loader.load('fonts/VT323_Regular.json', function (font) {
             textBlocks.forEach((text, index) => {
-                // Create a canvas and draw your text on it
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                ctx.font = '48px VT323'; // Set the font size and family
-                ctx.fillStyle = 'red'; // Set text color
-                ctx.fillText(text, 0, 50); // Draw the text
+                const characters = text.split('');
+                const baseRadius = 70; // Base radius for the text ring
     
-                // Use the canvas as a texture
-                const texture = new THREE.CanvasTexture(canvas);
-                const material = new THREE.SpriteMaterial({ map: texture });
+                characters.forEach((char, charIndex) => {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = 100; // Adjust canvas size as needed
+                    canvas.height = 100;
+                    ctx.font = '72px VT323'; // Increase font size
+                    ctx.fillStyle = 'red';
+                    ctx.fillText(char, canvas.width / 2, canvas.height / 2); // Center the text on the canvas
     
-                // Create a sprite with the material
-                const sprite = new THREE.Sprite(material);
-                sprite.position.x = (index - textBlocks.length / 2) * 150;
-                sprite.position.y = 100; // Adjust as needed
-                sprite.scale.set(100, 50, 10); // Adjust the size as needed
-
-                scene.add(sprite);
-                textSprites.push(sprite);
+                    const texture = new THREE.CanvasTexture(canvas);
+                    const material = new THREE.SpriteMaterial({ map: texture });
+                    const sprite = new THREE.Sprite(material);
+                    sprite.scale.set(20, 20, 1); // Keep sprite scale consistent
+    
+                    // Positioning around the sphere
+                    const angle = (2 * Math.PI / characters.length) * charIndex;
+                    sprite.position.x = spheres[index].position.x + baseRadius * Math.cos(angle);
+                    sprite.position.y = spheres[index].position.y;
+                    sprite.position.z = spheres[index].position.z + baseRadius * Math.sin(angle);
+    
+                    sprite.lookAt(spheres[index].position);
+    
+                    scene.add(sprite);
+                    textSprites.push(sprite);
+                });
             });
         });
     }
-        
+                    
     function onWindowResize() {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
