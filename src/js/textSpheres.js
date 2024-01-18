@@ -3,9 +3,8 @@ import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 export function textSpheres(containerID, userText) {
-    let scene, camera, renderer, spheres = [], textSprites = [], isRotating = true;
-    let orbitAngles = [];
-    let textBlocks = userText.split('.').filter(Boolean);
+    let scene, camera, renderer, sphere, textSprites = [], isRotating = true;
+    let textBlocks = [userText]; // Treat all text as a single block
     let textSpritesLoaded = false;
 
     function init() {
@@ -29,15 +28,10 @@ export function textSpheres(containerID, userText) {
         controls.rotateSpeed = 0.2;    
 
         // Sphere creation
-        for (let i = 0; i < textBlocks.length; i++) {
-            const geometry = new THREE.SphereGeometry(70, 32, 32);
-            const material = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true });
-            const sphere = new THREE.Mesh(geometry, material);
-            sphere.position.x = (i - textBlocks.length / 2) * 150;
-            scene.add(sphere);
-            spheres.push(sphere);
-            orbitAngles.push(0);
-        }
+        const geometry = new THREE.SphereGeometry(64, 64, 64);
+        const material = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true });
+        sphere = new THREE.Mesh(geometry, material);
+        scene.add(sphere);
 
         // Text sprite creation
         createTextSprites();
@@ -53,39 +47,46 @@ export function textSpheres(containerID, userText) {
         const loader = new FontLoader();
     
         loader.load('fonts/VT323_Regular.json', function (font) {
-            textBlocks.forEach((text, index) => {
-                const characters = text.split('');
-                const baseRadius = 70; // Base radius for the text ring
+            const fullText = textBlocks.join(' '); // Combine all text
+            const characters = fullText.split('');
+            const sphereRadius = 40; // Sphere's radius
+            const spiralTurns = 5; // Number of turns in the spiral
+            const totalCharacters = characters.length;
     
-                characters.forEach((char, charIndex) => {
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    canvas.width = 100; // Adjust canvas size as needed
-                    canvas.height = 100;
-                    ctx.font = '72px VT323'; // Increase font size
-                    ctx.fillStyle = 'red';
-                    ctx.fillText(char, canvas.width / 2, canvas.height / 2); // Center the text on the canvas
+            characters.forEach((char, charIndex) => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = 64; // Adjust as needed
+                canvas.height = 64;
+                ctx.font = '48px VT323';
+                ctx.fillStyle = 'red';
+                ctx.fillText(char, canvas.width / 2, canvas.height / 2);
     
-                    const texture = new THREE.CanvasTexture(canvas);
-                    const material = new THREE.SpriteMaterial({ map: texture });
-                    const sprite = new THREE.Sprite(material);
-                    sprite.scale.set(20, 20, 1); // Keep sprite scale consistent
+                const texture = new THREE.CanvasTexture(canvas);
+                const material = new THREE.SpriteMaterial({ map: texture });
+                const sprite = new THREE.Sprite(material);
+                sprite.scale.set(10, 10, 1); // Adjust as needed
     
-                    // Positioning around the sphere
-                    const angle = (2 * Math.PI / characters.length) * charIndex;
-                    sprite.position.x = spheres[index].position.x + baseRadius * Math.cos(angle);
-                    sprite.position.y = spheres[index].position.y;
-                    sprite.position.z = spheres[index].position.z + baseRadius * Math.sin(angle);
+                // Calculate the spiral position
+                const phi = Math.PI * (charIndex / totalCharacters); // Linear change from north to south
+                const theta = Math.PI * spiralTurns * (charIndex / totalCharacters); // Spiral change around the sphere
     
-                    sprite.lookAt(spheres[index].position);
+                sprite.position.x = sphere.position.x + sphereRadius * Math.sin(phi) * Math.cos(theta);
+                sprite.position.y = sphere.position.y + sphereRadius * Math.cos(phi);
+                sprite.position.z = sphere.position.z + sphereRadius * Math.sin(phi) * Math.sin(theta);
     
-                    scene.add(sprite);
-                    textSprites.push(sprite);
-                });
+                // sprite.lookAt(sphere.position); // Orient the text towards the center of the sphere
+
+    
+                scene.add(sprite);
+                textSprites.push(sprite);
             });
+
+            textSpritesLoaded = true;
+
         });
     }
-                    
+                                            
     function onWindowResize() {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
@@ -100,22 +101,26 @@ export function textSpheres(containerID, userText) {
 
     function animate() {
         requestAnimationFrame(animate);
-
-        if (isRotating && textSpritesLoaded) { // Check flag before modifying sprites
-            spheres.forEach((sphere, index) => {
-                sphere.rotation.x += 0.005;
-                sphere.rotation.y += 0.005;
-
-                if (textSprites[index]) { // Additional safety check
-                    textSprites[index].rotation.y += 0.005;
-                }
-            });
+    
+        textSprites.forEach(sprite => {
+            // Calculate the direction from the sprite to the camera
+            const spritePosition = new THREE.Vector3();
+            sprite.getWorldPosition(spritePosition);
+            const toCameraDirection = camera.position.clone().sub(spritePosition).normalize();
+    
+            // Calculate the angle for correct orientation
+            const angle = Math.atan2(toCameraDirection.x, toCameraDirection.z);
+            sprite.rotation.y = angle + Math.PI; // Add Math.PI to flip the orientation
+        });
+    
+        if (isRotating) {
+            sphere.rotation.x += 0.005;
+            sphere.rotation.y += 0.005;
         }
-
-        // controls.update();
+    
         renderer.render(scene, camera);
     }
-
+            
     init();
     animate();
 }
