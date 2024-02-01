@@ -24,6 +24,8 @@ export function waveGen(containerID) {
       1000
   );
 
+  let autoRotate = true;
+
   const renderer = new THREE.WebGLRenderer();
   renderer.setSize(container.offsetWidth, container.offsetHeight);
   renderer.setClearColor(0x000000);
@@ -40,51 +42,30 @@ export function waveGen(containerID) {
 
     // OrbitControls
     const controls = new OrbitControls(camera, renderer.domElement);
-    // controls = new MapControls( camera, effect.domElement );
-    // controls = new TrackballControls(camera, renderer.domElement);
-
-    console.log('Controls after init:', controls); // Debug log
-    controls.enableDamping = true; // Optional, but makes the controls smoother
-    controls.dampingFactor = 0.1;
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.5;
     controls.enableZoom = true;
+    controls.autoRotate = true; // Auto-rotate is on by default
+    controls.autoRotateSpeed = 1.0;
 
-    controls.rotateSpeed = 5.0; // Increase rotation speed
-    controls.zoomSpeed = 1.2; // Increase zoom speed
-    controls.panSpeed = 0.8; // Increase pan speed
-    controls.dynamicDampingFactor = 0.2; // Lower damping factor for quicker stop
-    controls.staticMoving = false; // Set to true to stop immediately on mouse release
 
-    // Function to generate an array of grayscale colors
-    function generateGrayscaleColors(gridSize, wavePeriod) {
-      const colors = [];
-      const totalElements = gridSize * gridSize;
-  
-      for (let i = 0; i < totalElements; i++) {
-          // Calculate position in the wave cycle (0 to 1)
-          const cyclePosition = (i % wavePeriod) / wavePeriod;
-  
-          // Calculate brightness based on the cycle position
-          const brightness = Math.floor(cyclePosition * 255);
-          const color = (brightness << 16) | (brightness << 8) | brightness; // RGB values are the same for grayscale
-          colors.push(color);
+    document.addEventListener('keypress', function(event) {
+      if (event.key === 'r' || event.key === 'R') {
+          controls.autoRotate = !controls.autoRotate; // Toggle auto-rotation
       }
-      return colors;
-  }
+  });
+    
   
     // Create and add spheres to the scene
-    const sphereGeometry = new THREE.SphereGeometry(0.05, 8, 8);
+    const sphereGeometry = new THREE.SphereGeometry(0.0025, 8, 8);
     const grid = [];
-    const gridSize = 48;
-    const spacing = 0.5;
-    const wavePeriod = 6; // Define the period of the wave
-    // const colors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0x00ffff, 0xff00ff]; // Array of colors
-    const colors = generateGrayscaleColors(gridSize, wavePeriod);
+    const gridSize = 64;
+    const spacing = 0.125;
     
     for (let i = 0; i < gridSize; i++) {
       for (let j = 0; j < gridSize; j++) {
-          const colorIndex = i * gridSize + j; // Linear index in the grid
           const sphereMaterial = new THREE.MeshStandardMaterial({ 
-            color: colors[colorIndex],
+            color: 0x000000,
             wireframe: true,
            });
           const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
@@ -94,17 +75,37 @@ export function waveGen(containerID) {
           scene.add(sphere);
       }
   }
+
+    const rotatedGrid = [];
+
+    for (let i = 0; i < gridSize; i++) {
+      for (let j = 0; j < gridSize; j++) {
+          const colorIndex = i * gridSize + j; // Linear index in the grid
+          const sphereMaterial = new THREE.MeshStandardMaterial({ 
+            // color: colors[colorIndex],
+            color: 0x000000,
+            wireframe: true,
+          });
+          const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+          sphere.position.x = (j - gridSize / 2) * spacing; // Swapped i and j
+          sphere.position.z = -(i - gridSize / 2) * spacing; 
+          rotatedGrid.push(sphere);
+          scene.add(sphere);
+      }
+    }
+
       
     // Camera position for isometric view
     camera.position.set(50, 50, 50); // Adjust the position based on your grid size
     camera.lookAt(scene.position);
-    camera.zoom = 3; // Adjust the zoom level
+    camera.zoom = 5; // Adjust the zoom level
     camera.updateProjectionMatrix();
 
     // Random phase offset between 1 and 360 degrees, converted to radians
-    const randomPhaseOffset = Math.random() * 1 * Math.PI; // 360 degrees in radians
-    const primaryWaveAmplitude = 1.5;
-    const secondaryWaveAmplitude = 0.75;
+    const ampMod = 2
+    const randomPhaseOffset = Math.random() * Math.PI; // 180 degrees in radians
+    const primaryWaveAmplitude = (Math.random() * .75) * ampMod
+    const secondaryWaveAmplitude = (Math.random() * 2) * ampMod;
 
     // Trochoidal wave function
     function trochoidalWave(time, position) {
@@ -117,12 +118,17 @@ export function waveGen(containerID) {
       return secondaryWaveAmplitude * Math.sin(time + rotatedX * 0.5 + randomPhaseOffset) * Math.cos(time + rotatedZ * 0.5 + randomPhaseOffset);
     }
   
-// Function to create the initial wireframe using LineSegments with color
-function createWireframe(grid, gridSize, wavePeriod) {
+    function getColorFromPosition(yPosition) {
+      // adjust the abc values to change the hue, saturation, and lightness respectively
+      return new THREE.Color().setHSL(.666 +(1-(yPosition) * .2), 0.7, 0.5);
+    }
+    
+
+// Function to create the initial wireframe using LineSegments with dynamic Y-based color
+function createWireframe(grid) {
   const points = grid.map(sphere => [sphere.position.x, sphere.position.z]);
   const delaunay = Delaunator.from(points);
   const edges = new Set();
-  const colors = generateGrayscaleColors(gridSize, wavePeriod);
 
   // Add edges to the set to ensure uniqueness
   for (let i = 0; i < delaunay.triangles.length; i += 3) {
@@ -141,9 +147,9 @@ function createWireframe(grid, gridSize, wavePeriod) {
           grid[end].position.x, grid[end].position.y, grid[end].position.z
       );
 
-      // Assign color based on the grayscale color of the corresponding spheres
-      const colorStart = new THREE.Color(colors[start % colors.length]);
-      const colorEnd = new THREE.Color(colors[end % colors.length]);
+      // Dynamic color calculation based on Y position
+      const colorStart = getColorFromPosition(grid[start].position.y);
+      const colorEnd = getColorFromPosition(grid[end].position.y);
       vertexColors.push(colorStart.r, colorStart.g, colorStart.b);
       vertexColors.push(colorEnd.r, colorEnd.g, colorEnd.b);
   });
@@ -153,16 +159,17 @@ function createWireframe(grid, gridSize, wavePeriod) {
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(vertexColors, 3));
 
   const material = new THREE.LineBasicMaterial({ 
-      vertexColors: true // Enable vertex colors
+      vertexColors: true,
   });
 
   const wireframe = new THREE.LineSegments(geometry, material);
   return wireframe;
 }
 
-// Function to update the wireframe
+// Function to update the wireframe with dynamic Y-based color
 function updateWireframe(grid, wireframe) {
   const vertices = wireframe.geometry.attributes.position.array;
+  const vertexColors = wireframe.geometry.attributes.color.array;
   const points = grid.map(sphere => [sphere.position.x, sphere.position.z]);
   const delaunay = Delaunator.from(points);
   const edges = new Set();
@@ -174,33 +181,80 @@ function updateWireframe(grid, wireframe) {
       edges.add(`${delaunay.triangles[i + 2]}_${delaunay.triangles[i]}`);
   }
 
-  let i = 0;
+  let vertexIndex = 0;
   edges.forEach(edge => {
       const [start, end] = edge.split("_").map(Number);
-      vertices[i++] = grid[start].position.x; vertices[i++] = grid[start].position.y; vertices[i++] = grid[start].position.z;
-      vertices[i++] = grid[end].position.x; vertices[i++] = grid[end].position.y; vertices[i++] = grid[end].position.z;
+      // Update vertex positions (unchanged)
+      vertices[vertexIndex * 3] = grid[start].position.x;
+      vertices[vertexIndex * 3 + 1] = grid[start].position.y;
+      vertices[vertexIndex * 3 + 2] = grid[start].position.z;
+      vertexIndex++;
+      vertices[vertexIndex * 3] = grid[end].position.x;
+      vertices[vertexIndex * 3 + 1] = grid[end].position.y;
+      vertices[vertexIndex * 3 + 2] = grid[end].position.z;
+      vertexIndex++;
+
+      // Update colors based on new Y positions
+      const colorStart = getColorFromPosition(grid[start].position.y);
+      const colorEnd = getColorFromPosition(grid[end].position.y);
+      vertexColors[(vertexIndex - 2) * 3] = colorStart.r;
+      vertexColors[(vertexIndex - 2) * 3 + 1] = colorStart.g;
+      vertexColors[(vertexIndex - 2) * 3 + 2] = colorStart.b;
+      vertexColors[vertexIndex * 3 - 3] = colorEnd.r;
+      vertexColors[vertexIndex * 3 - 2] = colorEnd.g;
+      vertexColors[vertexIndex * 3 - 1] = colorEnd.b;
   });
 
   wireframe.geometry.attributes.position.needsUpdate = true;
+  wireframe.geometry.attributes.color.needsUpdate = true; // Mark the color attribute for update
 }
 
 // Create wireframe and add to scene
 const wireframe = createWireframe(grid);
 scene.add(wireframe);
 
+const rotatedWireframe = createWireframe(rotatedGrid);
+scene.add(rotatedWireframe);
 
 
 function animate() {
   requestAnimationFrame(animate);
 
-  // Update sphere positions and wireframe
-  const time = Date.now() * 0.001;
-  grid.forEach(sphere => {
-      const wave1 = trochoidalWave(time, sphere.position);
-      const wave2 = trochoidalPhaseWave(time, sphere.position);
-      sphere.position.y = (wave1 + wave2) / 2; // Wave interference
+  controls.update();
+
+  // Edge margin where the exponential fade starts
+  const edgeMargin = spacing * 30; // Adjust based on visual preference
+  const decayRate = 1 / edgeMargin; // Decay rate, adjust for how quickly the fade happens
+
+  // Calculate maximum distances from the center to the edge
+  const maxDistanceX = (gridSize / 2) * spacing;
+  const maxDistanceZ = (gridSize / 2) * spacing;
+
+  // Update sphere positions and wireframes
+  const time = Date.now() * 0.0005;
+  grid.forEach((sphere, index) => {
+    // Calculate distance to the nearest edge
+    const distanceToEdgeX = Math.max(0, maxDistanceX - Math.abs(sphere.position.x));
+    const distanceToEdgeZ = Math.max(0, maxDistanceZ - Math.abs(sphere.position.z));
+    const minDistanceToEdge = Math.min(distanceToEdgeX, distanceToEdgeZ);
+
+    // Apply exponential decay based on the minimum distance to the edge
+    const decayFactor = Math.exp(-decayRate * (edgeMargin - minDistanceToEdge));
+
+    const wave1 = trochoidalWave(time, sphere.position) * decayFactor;
+    const wave2 = trochoidalPhaseWave(time, sphere.position) * decayFactor;
+    sphere.position.y = (wave1 + wave2) / 2; // Adjusted Y position with exponential fade
+
+    // Update the color of the sphere based on its new Y position
+    sphere.material.color = getColorFromPosition(sphere.position.y);
+
+    // Apply the same logic to the rotated grid
+    rotatedGrid[index].position.y = sphere.position.y; // Use the same Y position for consistency
+    rotatedGrid[index].material.color = getColorFromPosition(sphere.position.y);
   });
+
   updateWireframe(grid, wireframe);
+  updateWireframe(rotatedGrid, rotatedWireframe);
 
   renderer.render(scene, camera);
 }
