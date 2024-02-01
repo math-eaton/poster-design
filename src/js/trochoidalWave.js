@@ -72,10 +72,10 @@ export function waveGen(containerID) {
   }
   
     // Create and add spheres to the scene
-    const sphereGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+    const sphereGeometry = new THREE.SphereGeometry(0.05, 8, 8);
     const grid = [];
-    const gridSize = 144;
-    const spacing = 1;
+    const gridSize = 48;
+    const spacing = 0.5;
     const wavePeriod = 6; // Define the period of the wave
     // const colors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0x00ffff, 0xff00ff]; // Array of colors
     const colors = generateGrayscaleColors(gridSize, wavePeriod);
@@ -83,7 +83,10 @@ export function waveGen(containerID) {
     for (let i = 0; i < gridSize; i++) {
       for (let j = 0; j < gridSize; j++) {
           const colorIndex = i * gridSize + j; // Linear index in the grid
-          const sphereMaterial = new THREE.MeshStandardMaterial({ color: colors[colorIndex] });
+          const sphereMaterial = new THREE.MeshStandardMaterial({ 
+            color: colors[colorIndex],
+            wireframe: true,
+           });
           const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
           sphere.position.x = (i - gridSize / 2) * spacing;
           sphere.position.z = (j - gridSize / 2) * spacing;
@@ -98,11 +101,22 @@ export function waveGen(containerID) {
     camera.zoom = 3; // Adjust the zoom level
     camera.updateProjectionMatrix();
 
+    // Random phase offset between 1 and 360 degrees, converted to radians
+    const randomPhaseOffset = Math.random() * 1 * Math.PI; // 360 degrees in radians
+    const primaryWaveAmplitude = 1.5;
+    const secondaryWaveAmplitude = 0.75;
+
     // Trochoidal wave function
     function trochoidalWave(time, position) {
-        return Math.sin(time + position.x * 0.5) * Math.cos(time + position.z * 0.5);
+        return primaryWaveAmplitude * Math.sin(time + position.x * 0.5) * Math.cos(time + position.z * 0.5);
     }
 
+    function trochoidalPhaseWave(time, position) {
+      const rotatedX = (position.x - position.z) / Math.sqrt(2);
+      const rotatedZ = (position.x + position.z) / Math.sqrt(2);
+      return secondaryWaveAmplitude * Math.sin(time + rotatedX * 0.5 + randomPhaseOffset) * Math.cos(time + rotatedZ * 0.5 + randomPhaseOffset);
+    }
+  
 // Function to create the initial wireframe using LineSegments with color
 function createWireframe(grid, gridSize, wavePeriod) {
   const points = grid.map(sphere => [sphere.position.x, sphere.position.z]);
@@ -182,13 +196,14 @@ function animate() {
   // Update sphere positions and wireframe
   const time = Date.now() * 0.001;
   grid.forEach(sphere => {
-      sphere.position.y = trochoidalWave(time, sphere.position);
+      const wave1 = trochoidalWave(time, sphere.position);
+      const wave2 = trochoidalPhaseWave(time, sphere.position);
+      sphere.position.y = (wave1 + wave2) / 2; // Wave interference
   });
   updateWireframe(grid, wireframe);
 
   renderer.render(scene, camera);
 }
-
     
 // Start animation loop
     animate();
