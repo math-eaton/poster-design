@@ -57,16 +57,18 @@ export function waveGen(containerID) {
     
   
     // Create and add spheres to the scene
-    const sphereGeometry = new THREE.SphereGeometry(0.0025, 8, 8);
+    const sphereGeometry = new THREE.SphereGeometry(0.1, 8, 8);
     const grid = [];
-    const gridSize = 64;
-    const spacing = 0.125;
+    const gridSize = 72;
+    const spacing = 0.5;
     
     for (let i = 0; i < gridSize; i++) {
       for (let j = 0; j < gridSize; j++) {
           const sphereMaterial = new THREE.MeshStandardMaterial({ 
             color: 0x000000,
-            wireframe: true,
+            wireframe: false,
+            opacity: 0.85,
+            alphaHash: true,
            });
           const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
           sphere.position.x = (i - gridSize / 2) * spacing;
@@ -82,9 +84,10 @@ export function waveGen(containerID) {
       for (let j = 0; j < gridSize; j++) {
           const colorIndex = i * gridSize + j; // Linear index in the grid
           const sphereMaterial = new THREE.MeshStandardMaterial({ 
-            // color: colors[colorIndex],
             color: 0x000000,
-            wireframe: true,
+            wireframe: false,
+            opacity: 0.58,
+            alphaHash: true,
           });
           const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
           sphere.position.x = (j - gridSize / 2) * spacing; // Swapped i and j
@@ -98,7 +101,7 @@ export function waveGen(containerID) {
     // Camera position for isometric view
     camera.position.set(50, 50, 50); // Adjust the position based on your grid size
     camera.lookAt(scene.position);
-    camera.zoom = 5; // Adjust the zoom level
+    camera.zoom = 1.5; // Adjust the zoom level
     camera.updateProjectionMatrix();
 
     // Random phase offset between 1 and 360 degrees, converted to radians
@@ -211,10 +214,10 @@ function updateWireframe(grid, wireframe) {
 
 // Create wireframe and add to scene
 const wireframe = createWireframe(grid);
-scene.add(wireframe);
+// scene.add(wireframe);
 
 const rotatedWireframe = createWireframe(rotatedGrid);
-scene.add(rotatedWireframe);
+// scene.add(rotatedWireframe);
 
 
 function animate() {
@@ -231,7 +234,7 @@ function animate() {
   const maxDistanceZ = (gridSize / 2) * spacing;
 
   // Update sphere positions and wireframes
-  const time = Date.now() * 0.0005;
+  const time = Date.now() * 0.00025;
   grid.forEach((sphere, index) => {
     // Calculate distance to the nearest edge
     const distanceToEdgeX = Math.max(0, maxDistanceX - Math.abs(sphere.position.x));
@@ -243,7 +246,7 @@ function animate() {
 
     const wave1 = trochoidalWave(time, sphere.position) * decayFactor;
     const wave2 = trochoidalPhaseWave(time, sphere.position) * decayFactor;
-    sphere.position.y = (wave1 + wave2) / 2; // Adjusted Y position with exponential fade
+    sphere.position.y = (wave1 + wave2) / 2; // amplitude of interfered waves
 
     // Update the color of the sphere based on its new Y position
     sphere.material.color = getColorFromPosition(sphere.position.y);
